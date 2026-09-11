@@ -1,0 +1,9 @@
+# Common dependencies for the DLO estimator and benchmark scripts.
+# The MuJoCo replay scripts additionally require the main project's
+# dependencies; install them from panda_cable_grasp separately.
+numpy>=2.0
+opencv-python>=4.8
+scipy>=1.12
+scikit-image>=0.22
+pybind11>=2.11
+mujoco>=3.1

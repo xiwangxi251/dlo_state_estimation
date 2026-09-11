@@ -1,0 +1,35 @@
+# Python and local environments
+__pycache__/
+*.py[cod]
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Native build products
+build/
+dist/
+*.egg-info/
+
+# Experiment outputs and recordings
+results/
+data/
+logs/
+*.log
+*.err.log
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.npz
+*.npy
+*.csv
+*.jsonl
+
+# IDE / OS files
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store
