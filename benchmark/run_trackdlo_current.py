@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -22,15 +23,14 @@ from dlo_position.recorded_benchmark import (
 )
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUN_ROOT = Path(
-    r"C:\Users\27642\Desktop\dynamic_cable\linux_log\expert_grasp_fix_4x50\run_20260824_113325"
+    os.environ.get("DLO_RUN_ROOT", REPO_ROOT / "data" / "recorded_run")
 )
 DEFAULT_PROJECT_SRC = Path(
-    r"C:\Users\27642\Desktop\dynamic_cable\panda_cable_grasp\src"
+    os.environ.get("PANDA_CABLE_GRASP_SRC", REPO_ROOT.parent / "panda_cable_grasp" / "src")
 )
-DEFAULT_TRACKDLO_ROOT = Path(
-    r"C:\Users\27642\Desktop\dynamic_cable\trackdlo_standalone"
-)
+DEFAULT_TRACKDLO_ROOT = REPO_ROOT / "trackdlo_standalone"
 DEFAULT_SCENARIOS = [
     "id_static",
     "id_rigid_l1_nominal",

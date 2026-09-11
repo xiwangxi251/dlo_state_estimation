@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from dlo_position.benchmark import discover_sequences, run_benchmark
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_ROOT = Path(
-    r"C:\Users\27642\Desktop\dynamic_cable\trackdlo_standalone\data\offline_sequences"
+    os.environ.get("DLO_DATA_ROOT", REPO_ROOT / "data" / "offline_sequences")
 )
 
 

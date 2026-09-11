@@ -23,10 +23,11 @@ import numpy as np
 
 
 # Allow the same vision adapter to run on the local Windows checkout and on
-# the Linux jump151 checkout.  The default preserves the existing local
-# invocation; remote evaluators set DLO_PROJECT_ROOT explicitly.
+# the Linux jump151 checkout.  The default assumes this repository sits next
+# to panda_cable_grasp; remote evaluators can set DLO_PROJECT_ROOT explicitly.
+REPO_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(os.environ.get(
-    "DLO_PROJECT_ROOT", r"C:\Users\27642\Desktop\dynamic_cable"
+    "DLO_PROJECT_ROOT", str(REPO_ROOT.parent)
 ))
 # The local checkout keeps the package under panda_cable_grasp/src, whereas
 # jump151 uses the conventional repository-level src/ layout.
@@ -36,10 +37,10 @@ PANDA_SRC = (
     else PROJECT_ROOT / "panda_cable_grasp" / "src"
 )
 TRACKDLO_ROOT = Path(os.environ.get(
-    "DLO_TRACKDLO_ROOT", str(PROJECT_ROOT / "trackdlo_standalone")
+    "DLO_TRACKDLO_ROOT", str(REPO_ROOT / "trackdlo_standalone")
 ))
 BENCHMARK_ROOT = Path(os.environ.get(
-    "DLO_BENCHMARK_ROOT", str(PROJECT_ROOT / "dlo_position_benchmark")
+    "DLO_BENCHMARK_ROOT", str(REPO_ROOT / "benchmark")
 ))
 TRACKDLO_SRC = TRACKDLO_ROOT / "src"
 for _path in (PANDA_SRC, TRACKDLO_SRC, BENCHMARK_ROOT):
