@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -12,22 +13,15 @@ import numpy as np
 
 
 def main() -> None:
-    root = Path(r"C:\Users\27642\Desktop\dynamic_cable")
+    repo_root = Path(__file__).resolve().parents[1]
+    root = Path(os.environ.get("DLO_PROJECT_ROOT", repo_root.parent))
     scenario = "id_combined_l1_nominal"
     targets = {20, 60, 80, 100, 120, 160, 220, 300}
-    episode = (
-        root
-        / "linux_log"
-        / "expert_grasp_fix_4x50"
-        / "run_20260824_113325"
-        / "episodes"
-        / "expert"
-        / scenario
-        / "seed_20280804"
-    )
+    run_root = Path(os.environ.get("DLO_RUN_ROOT", repo_root / "data" / "recorded_run"))
+    episode = run_root / "episodes" / "expert" / scenario / "seed_20280804"
     sys.path.insert(0, str(root / "panda_cable_grasp" / "src"))
-    sys.path.insert(0, str(root / "trackdlo_standalone" / "src"))
-    sys.path.insert(0, str(root / "dlo_position_benchmark"))
+    sys.path.insert(0, str(repo_root / "trackdlo_standalone" / "src"))
+    sys.path.insert(0, str(repo_root / "benchmark"))
     from dlo_position.recorded_benchmark import camera_matrix, world_from_camera_optical
     from trackdlo_standalone.current_frame import (
         CurrentFrameReconstructionConfig,
@@ -55,7 +49,7 @@ def main() -> None:
     trajectory = np.load(episode / "trajectory.npz", allow_pickle=False)
     spec = mujoco.mjtState(int(trajectory["state_spec"]))
     capture = cv2.VideoCapture(str(episode / "global.mp4"))
-    output = root / "dlo_position_benchmark" / "results" / "current_frame_debug"
+    output = repo_root / "results" / "current_frame_debug"
     output.mkdir(parents=True, exist_ok=True)
     for frame_index in range(max(targets) + 1):
         ok, bgr = capture.read()

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -17,6 +18,7 @@ import numpy as np
 
 
 def _main() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", default="id_shape_nominal_current")
     parser.add_argument("--frame", type=int, nargs="+", default=[20, 50, 80, 110])
@@ -25,15 +27,15 @@ def _main() -> None:
     parser.add_argument(
         "--run-root",
         type=Path,
-        default=Path(r"C:\Users\27642\Desktop\dynamic_cable\linux_log\expert_grasp_fix_4x50\run_20260824_113325"),
+        default=Path(os.environ.get("DLO_RUN_ROOT", repo_root / "data" / "recorded_run")),
     )
     parser.add_argument(
-        "--project-src", type=Path, default=Path(r"C:\Users\27642\Desktop\dynamic_cable")
+        "--project-src", type=Path, default=Path(os.environ.get("DLO_PROJECT_ROOT", repo_root.parent))
     )
     args = parser.parse_args()
 
     sys.path.insert(0, str(args.project_src / "panda_cable_grasp" / "src"))
-    sys.path.insert(0, str(args.project_src / "trackdlo_standalone" / "src"))
+    sys.path.insert(0, str(repo_root / "trackdlo_standalone" / "src"))
     from dlo_position.geometry import transform_points
     from dlo_position.recorded_benchmark import camera_matrix, world_from_camera_optical
     from panda_cable_grasp.env.environment import CableGraspEnv

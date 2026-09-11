@@ -1,7 +1,7 @@
 """Offline diagnostics for self-supervised current-frame path ranking."""
 from __future__ import annotations
 
-import argparse, json, sys
+import argparse, json, os, sys
 from pathlib import Path
 import cv2
 import mujoco
@@ -9,15 +9,16 @@ import numpy as np
 
 
 def main() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenario", default="id_shape_nominal_current")
     ap.add_argument("--camera", choices=["opst", "wrist"], default="opst")
     ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--run-root", type=Path, default=Path(r"C:\Users\27642\Desktop\dynamic_cable\linux_log\expert_grasp_fix_4x50\run_20260824_113325"))
-    ap.add_argument("--project-src", type=Path, default=Path(r"C:\Users\27642\Desktop\dynamic_cable"))
+    ap.add_argument("--run-root", type=Path, default=Path(os.environ.get("DLO_RUN_ROOT", repo_root / "data" / "recorded_run")))
+    ap.add_argument("--project-src", type=Path, default=Path(os.environ.get("DLO_PROJECT_ROOT", repo_root.parent)))
     args = ap.parse_args()
     sys.path.insert(0, str(args.project_src / "panda_cable_grasp" / "src"))
-    sys.path.insert(0, str(args.project_src / "trackdlo_standalone" / "src"))
+    sys.path.insert(0, str(repo_root / "trackdlo_standalone" / "src"))
     from dlo_position.geometry import transform_points
     from dlo_position.recorded_benchmark import camera_matrix, world_from_camera_optical
     from panda_cable_grasp.env.environment import CableGraspEnv

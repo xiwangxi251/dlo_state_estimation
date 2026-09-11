@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,12 +12,13 @@ import numpy as np
 
 
 def main() -> None:
-    root = Path(r"C:\Users\27642\Desktop\dynamic_cable")
-    run_root = root / "linux_log" / "expert_grasp_fix_4x50" / "run_20260824_113325"
+    repo_root = Path(__file__).resolve().parents[1]
+    root = Path(os.environ.get("DLO_PROJECT_ROOT", repo_root.parent))
+    run_root = Path(os.environ.get("DLO_RUN_ROOT", repo_root / "data" / "recorded_run"))
     scenario = "id_shape_nominal_current"
     episode = run_root / "episodes" / "expert" / scenario / "seed_20280804"
     sys.path.insert(0, str(root / "panda_cable_grasp" / "src"))
-    sys.path.insert(0, str(root / "trackdlo_standalone" / "src"))
+    sys.path.insert(0, str(repo_root / "trackdlo_standalone" / "src"))
     from dlo_position.geometry import transform_points
     from dlo_position.recorded_benchmark import camera_matrix, world_from_camera_optical
     from panda_cable_grasp.env.environment import CableGraspEnv
@@ -28,6 +30,7 @@ def main() -> None:
     from trackdlo_standalone.initialization import ordered_skeleton_pixels
     import trackdlo_standalone.initialization as init_module
     from scipy.interpolate import splprep, splev
+    sys.path.insert(0, str(repo_root / "benchmark"))
     from run_trackdlo_current import _current_skeleton_centerline_paths
 
     with (episode / "episode.json").open("r", encoding="utf-8") as stream:

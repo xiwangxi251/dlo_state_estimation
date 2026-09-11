@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -30,6 +31,7 @@ def _apply(shape: np.ndarray, rotation: np.ndarray, translation: np.ndarray) -> 
 
 
 def main() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", default="id_shape_nominal_current")
     parser.add_argument("--target-episode", default="seed_20280804")
@@ -37,13 +39,13 @@ def main() -> None:
     parser.add_argument("--max-library", type=int, default=1000)
     parser.add_argument("--top-k", nargs="+", type=int, default=[1, 3, 5, 10])
     parser.add_argument("--fit-on-truth-visible", action="store_true")
-    parser.add_argument("--run-root", type=Path, default=Path(r"C:\Users\27642\Desktop\dynamic_cable\linux_log\expert_grasp_fix_4x50\run_20260824_113325"))
-    parser.add_argument("--project-root", type=Path, default=Path(r"C:\Users\27642\Desktop\dynamic_cable"))
+    parser.add_argument("--run-root", type=Path, default=Path(os.environ.get("DLO_RUN_ROOT", repo_root / "data" / "recorded_run")))
+    parser.add_argument("--project-root", type=Path, default=Path(os.environ.get("DLO_PROJECT_ROOT", repo_root.parent)))
     args = parser.parse_args()
     root = args.project_root
     sys.path.insert(0, str(root / "panda_cable_grasp" / "src"))
-    sys.path.insert(0, str(root / "trackdlo_standalone" / "src"))
-    sys.path.insert(0, str(root / "dlo_position_benchmark"))
+    sys.path.insert(0, str(repo_root / "trackdlo_standalone" / "src"))
+    sys.path.insert(0, str(repo_root / "benchmark"))
     from dlo_position.geometry import transform_points
     from dlo_position.recorded_benchmark import camera_matrix, world_from_camera_optical
     from trackdlo_standalone.geometry import resample_polyline
@@ -52,7 +54,12 @@ def main() -> None:
     from panda_cable_grasp.evaluation.motion_diagnostics import env_config_for_scenario
     from panda_cable_grasp.scenarios.registry import get_scenario
 
-    trace_file = root / "dlo_position_benchmark" / "results" / "adaptive_dual_visible_history_final_20260906" / "node_traces.npz"
+    trace_file = Path(
+        os.environ.get(
+            "DLO_TRACE_FILE",
+            str(repo_root / "results" / "adaptive_dual_visible_history_final_20260906" / "node_traces.npz"),
+        )
+    )
     traces = np.load(trace_file, allow_pickle=False)
     scene = traces["scenario"].astype(str)
     select = scene == args.scenario

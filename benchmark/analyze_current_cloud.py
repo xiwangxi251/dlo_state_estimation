@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -9,9 +10,10 @@ import mujoco
 import numpy as np
 
 
-RUN_ROOT = Path(r"C:\Users\27642\Desktop\dynamic_cable\linux_log\expert_grasp_fix_4x50\run_20260824_113325")
-PROJECT_SRC = Path(r"C:\Users\27642\Desktop\dynamic_cable\panda_cable_grasp\src")
-TRACK_SRC = Path(r"C:\Users\27642\Desktop\dynamic_cable\trackdlo_standalone\src")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RUN_ROOT = Path(os.environ.get("DLO_RUN_ROOT", REPO_ROOT / "data" / "recorded_run"))
+PROJECT_SRC = Path(os.environ.get("PANDA_CABLE_GRASP_SRC", REPO_ROOT.parent / "panda_cable_grasp" / "src"))
+TRACK_SRC = REPO_ROOT / "trackdlo_standalone" / "src"
 
 
 def camera_matrix(width: int, height: int, fovy: float) -> np.ndarray:
