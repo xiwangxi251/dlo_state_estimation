@@ -84,7 +84,7 @@ visible = state.visible_nodes
 ## 测试
 
 ```powershell
-python -m unittest discover -s .\benchmark\tests -v
+python -m unittest discover -s .\benchmark\tests -t .\benchmark -v
 python -m unittest discover -s .\trackdlo_standalone\tests -v
 ```
 
