@@ -60,6 +60,31 @@ python .\benchmark\run_trackdlo_current.py `
 
 该入口包含当前使用的改进：全局/夹爪双视角、邻域点云可见性判断、可见节点优先使用当前观测、遮挡节点用时序状态补全，以及 CPD 未完全收敛时仍使用本次结果。算法默认只输出位置，不计算速度。
 
+### NERO `panda_like` 数据
+
+服务器上的 NERO DynamicVLA `panda_like` 数据是 25 Hz 的 `opst.mp4`/`wrist.mp4` 加精简 episode 文件；深度由 MuJoCo 根据原始 FULLPHYSICS trajectory 回放生成。先把渲染数据和原始 trajectory 放到本机，再转换为评测布局：
+
+```powershell
+python .\benchmark\prepare_nero_pandalike.py `
+  --rendered-root "D:\data\nero_cable_dynamicvla_rendered_20260912_wrist_pandalike" `
+  --source-root "D:\data\nero_scripted_dynamic20_4x1000_20260906" `
+  --output-root "D:\data\nero_dlo_test" `
+  --selection id_static=20280804 id_rigid_l1_nominal=20280804 `
+               id_shape_nominal_current=20280804 id_combined_l1_nominal=20280806
+```
+
+再使用 NERO 模型运行当前 TrackDLO（视频已经是 25 Hz，因此保持 `--frame-stride 1`）：
+
+```powershell
+python .\benchmark\run_trackdlo_current.py `
+  --run-root "D:\data\nero_dlo_test" `
+  --project-src "..\panda_cable_grasp\src" `
+  --trackdlo-root ".\trackdlo_standalone" `
+  --robot nero --camera opst --dual-camera `
+  --episodes-per-scenario 1 --frame-stride 1 `
+  --output ".\results\nero_pandalike_25hz"
+```
+
 如果只测试 TrackDLO 原生离线序列：
 
 ```powershell

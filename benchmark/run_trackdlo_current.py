@@ -5,7 +5,7 @@ import csv
 import json
 import os
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from time import perf_counter_ns
 
@@ -482,6 +482,11 @@ def run_current_trackdlo(
     project_src: Path,
     trackdlo_root: Path,
     output: Path,
+    robot: str,
+    nero_base_offset_x: float,
+    nero_tcp_dx: float,
+    nero_tcp_dy: float,
+    nero_tcp_dz: float,
     camera: str,
     dual_camera: bool,
     dual_independent: bool,
@@ -595,7 +600,7 @@ def run_current_trackdlo(
         if str(path) not in sys.path:
             sys.path.insert(0, str(path))
 
-    from panda_cable_grasp.env.environment import CableGraspEnv
+    from panda_cable_grasp.env.environment import CableGraspEnv, ROBOT_SPECS
     from panda_cable_grasp.evaluation.motion_diagnostics import env_config_for_scenario
     from panda_cable_grasp.scenarios.registry import get_scenario
     from trackdlo_standalone import TrackDLOConfig, TrackDLOTracker
@@ -607,6 +612,21 @@ def run_current_trackdlo(
         render_frame,
         render_pointcloud_frame,
     )
+
+    robot = str(robot).lower()
+    if robot == "nero":
+        # The panda_like NERO videos were rendered with the calibration used
+        # by the 2026-09-12 dataset: base x=0.35 m and TCP x offset=+0.01 m.
+        nominal = ROBOT_SPECS["nero"]
+        ROBOT_SPECS["nero"] = replace(
+            nominal,
+            base_offset=(float(nero_base_offset_x), 0.0, 0.0),
+            grasp_center_local=(
+                0.1733 + float(nero_tcp_dx),
+                float(nero_tcp_dy),
+                -0.0235 + float(nero_tcp_dz),
+            ),
+        )
 
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -639,6 +659,7 @@ def run_current_trackdlo(
             get_scenario(scenario_name),
             seed=int(metadata["result"]["requested_seed"]),
             episode_seconds=15.0,
+            robot=robot,
         )
         config.dynamicvla_cameras_enabled = True
         env = CableGraspEnv(config)
@@ -1384,6 +1405,7 @@ def run_current_trackdlo(
     summary.update(
         {
             "method": "TrackDLO official C++ core via ROS-free wrapper",
+            "robot": robot,
             "camera": camera,
             "dual_camera": bool(dual_camera),
             "dual_independent": bool(dual_independent),
@@ -1433,6 +1455,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-src", type=Path, default=DEFAULT_PROJECT_SRC)
     parser.add_argument("--trackdlo-root", type=Path, default=DEFAULT_TRACKDLO_ROOT)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--robot",
+        choices=["panda", "nero"],
+        default="panda",
+        help="robot model used to replay MuJoCo states and render depth",
+    )
+    parser.add_argument(
+        "--nero-base-offset-x",
+        type=float,
+        default=0.35,
+        help="NERO base-x calibration used by the panda_like rendered dataset",
+    )
+    parser.add_argument(
+        "--nero-tcp-dx",
+        type=float,
+        default=0.01,
+        help="NERO grasp-center x offset used by the panda_like rendered dataset",
+    )
+    parser.add_argument("--nero-tcp-dy", type=float, default=0.0)
+    parser.add_argument("--nero-tcp-dz", type=float, default=0.0)
     parser.add_argument("--camera", choices=["opst", "wrist"], default="opst")
     parser.add_argument(
         "--dual-camera",
@@ -2046,6 +2088,11 @@ def main() -> None:
         project_src=args.project_src.resolve(),
         trackdlo_root=args.trackdlo_root.resolve(),
         output=args.output.resolve(),
+        robot=args.robot,
+        nero_base_offset_x=args.nero_base_offset_x,
+        nero_tcp_dx=args.nero_tcp_dx,
+        nero_tcp_dy=args.nero_tcp_dy,
+        nero_tcp_dz=args.nero_tcp_dz,
         camera=args.camera,
         dual_camera=args.dual_camera,
         dual_independent=args.dual_independent,
