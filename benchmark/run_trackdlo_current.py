@@ -483,10 +483,10 @@ def run_current_trackdlo(
     trackdlo_root: Path,
     output: Path,
     robot: str,
-    nero_base_offset_x: float,
-    nero_tcp_dx: float,
-    nero_tcp_dy: float,
-    nero_tcp_dz: float,
+    nero_base_offset_x: float | None,
+    nero_tcp_dx: float | None,
+    nero_tcp_dy: float | None,
+    nero_tcp_dz: float | None,
     camera: str,
     dual_camera: bool,
     dual_independent: bool,
@@ -630,6 +630,7 @@ def run_current_trackdlo(
 
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    default_nero_spec = ROBOT_SPECS["nero"]
     video_path = output / f"trackdlo_{camera}_4scenes.mp4"
     pointcloud_video_path = output / f"trackdlo_{camera}_pointcloud_4scenes.mp4"
     correspondence_video_path = output / f"trackdlo_{camera}_correspondence_4scenes.mp4"
@@ -655,9 +656,53 @@ def run_current_trackdlo(
             continue
         with (episode_dirs[0] / "episode.json").open("r", encoding="utf-8") as stream:
             metadata = json.load(stream)
+        calibration = metadata.get("nero_calibration", {})
+        base_offset_m = (
+            nero_base_offset_x if nero_base_offset_x is not None else calibration.get("base_offset_m", 0.35)
+        )
+        tcp_dx_m = (
+            nero_tcp_dx if nero_tcp_dx is not None else calibration.get("tcp_dx_m", 0.01)
+        )
+        tcp_dy_m = (
+            nero_tcp_dy if nero_tcp_dy is not None else calibration.get("tcp_dy_m", 0.0)
+        )
+        tcp_dz_m = (
+            nero_tcp_dz if nero_tcp_dz is not None else calibration.get("tcp_dz_m", 0.0)
+        )
+        # Videos and FULLPHYSICS states may use a calibrated NERO base/TCP
+        # convention. Restore the nominal spec before each scenario so offsets
+        # do not accumulate during a multi-scenario run.
+        ROBOT_SPECS["nero"] = default_nero_spec
+        if robot == "nero" and any(
+            value is not None for value in (base_offset_m, tcp_dx_m, tcp_dy_m, tcp_dz_m)
+        ):
+            ROBOT_SPECS["nero"] = replace(
+                default_nero_spec,
+                base_offset=(
+                    float(base_offset_m)
+                    if base_offset_m is not None
+                    else default_nero_spec.base_offset[0],
+                    default_nero_spec.base_offset[1],
+                    default_nero_spec.base_offset[2],
+                ),
+                grasp_center_local=(
+                    default_nero_spec.grasp_center_local[0]
+                    + (float(tcp_dx_m) if tcp_dx_m is not None else 0.0),
+                    default_nero_spec.grasp_center_local[1]
+                    + (float(tcp_dy_m) if tcp_dy_m is not None else 0.0),
+                    default_nero_spec.grasp_center_local[2]
+                    + (float(tcp_dz_m) if tcp_dz_m is not None else 0.0),
+                ),
+            )
+        result_metadata = metadata.get("result", {})
+        requested_seed = result_metadata.get("requested_seed", metadata.get("seed"))
+        if requested_seed is None:
+            raise KeyError(
+                f"{episode_dirs[0] / 'episode.json'} is missing result.requested_seed/seed"
+            )
         config = env_config_for_scenario(
             get_scenario(scenario_name),
-            seed=int(metadata["result"]["requested_seed"]),
+            seed=int(requested_seed),
             episode_seconds=15.0,
             robot=robot,
         )
@@ -1405,8 +1450,14 @@ def run_current_trackdlo(
     summary.update(
         {
             "method": "TrackDLO official C++ core via ROS-free wrapper",
-            "robot": robot,
             "camera": camera,
+            "robot": robot,
+            "nero_calibration": {
+                "base_offset_m": nero_base_offset_x,
+                "tcp_dx_m": nero_tcp_dx,
+                "tcp_dy_m": nero_tcp_dy,
+                "tcp_dz_m": nero_tcp_dz,
+            },
             "dual_camera": bool(dual_camera),
             "dual_independent": bool(dual_independent),
             "dual_visible_secondary": bool(dual_visible_secondary),
@@ -1454,6 +1505,38 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-root", type=Path, default=DEFAULT_RUN_ROOT)
     parser.add_argument("--project-src", type=Path, default=DEFAULT_PROJECT_SRC)
     parser.add_argument("--trackdlo-root", type=Path, default=DEFAULT_TRACKDLO_ROOT)
+    parser.add_argument(
+        "--nero-base-offset-x",
+        "--nero-base-offset-m",
+        dest="nero_base_offset_x",
+        type=float,
+        default=None,
+        help="absolute NERO base x offset used by the recording (metres)",
+    )
+    parser.add_argument(
+        "--nero-tcp-dx",
+        "--nero-tcp-dx-m",
+        dest="nero_tcp_dx",
+        type=float,
+        default=None,
+        help="NERO grasp/TCP x calibration offset relative to the nominal spec (metres)",
+    )
+    parser.add_argument(
+        "--nero-tcp-dy",
+        "--nero-tcp-dy-m",
+        dest="nero_tcp_dy",
+        type=float,
+        default=None,
+        help="NERO grasp/TCP y calibration offset relative to the nominal spec (metres)",
+    )
+    parser.add_argument(
+        "--nero-tcp-dz",
+        "--nero-tcp-dz-m",
+        dest="nero_tcp_dz",
+        type=float,
+        default=None,
+        help="NERO grasp/TCP z calibration offset relative to the nominal spec (metres)",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--robot",
@@ -1461,20 +1544,6 @@ def parse_args() -> argparse.Namespace:
         default="panda",
         help="robot model used to replay MuJoCo states and render depth",
     )
-    parser.add_argument(
-        "--nero-base-offset-x",
-        type=float,
-        default=0.35,
-        help="NERO base-x calibration used by the panda_like rendered dataset",
-    )
-    parser.add_argument(
-        "--nero-tcp-dx",
-        type=float,
-        default=0.01,
-        help="NERO grasp-center x offset used by the panda_like rendered dataset",
-    )
-    parser.add_argument("--nero-tcp-dy", type=float, default=0.0)
-    parser.add_argument("--nero-tcp-dz", type=float, default=0.0)
     parser.add_argument("--camera", choices=["opst", "wrist"], default="opst")
     parser.add_argument(
         "--dual-camera",
