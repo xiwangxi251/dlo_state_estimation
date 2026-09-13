@@ -38,6 +38,16 @@ DEFAULT_SCENARIOS = [
     "id_combined_l1_nominal",
 ]
 
+# The NERO panda_like recordings were rendered with this wrist-camera pose.
+# Keep it as a code default so normal NERO replay does not require users to
+# repeat calibration arguments on every invocation.
+NERO_DEFAULT_BASE_OFFSET_M = 0.35
+NERO_DEFAULT_TCP_DX_M = 0.01
+NERO_DEFAULT_TCP_DY_M = 0.0
+NERO_DEFAULT_TCP_DZ_M = 0.0
+NERO_WRIST_CAMERA_POS = (0.02, -0.10, 0.0)
+NERO_WRIST_CAMERA_QUAT = (0.0, -0.7071067812, 0.0, 0.7071067812)
+
 
 def _write_csv(path: Path, rows: list[dict]) -> None:
     if not rows:
@@ -614,19 +624,6 @@ def run_current_trackdlo(
     )
 
     robot = str(robot).lower()
-    if robot == "nero":
-        # The panda_like NERO videos were rendered with the calibration used
-        # by the 2026-09-12 dataset: base x=0.35 m and TCP x offset=+0.01 m.
-        nominal = ROBOT_SPECS["nero"]
-        ROBOT_SPECS["nero"] = replace(
-            nominal,
-            base_offset=(float(nero_base_offset_x), 0.0, 0.0),
-            grasp_center_local=(
-                0.1733 + float(nero_tcp_dx),
-                float(nero_tcp_dy),
-                -0.0235 + float(nero_tcp_dz),
-            ),
-        )
 
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -658,16 +655,24 @@ def run_current_trackdlo(
             metadata = json.load(stream)
         calibration = metadata.get("nero_calibration", {})
         base_offset_m = (
-            nero_base_offset_x if nero_base_offset_x is not None else calibration.get("base_offset_m", 0.35)
+            nero_base_offset_x
+            if nero_base_offset_x is not None
+            else calibration.get("base_offset_m", NERO_DEFAULT_BASE_OFFSET_M)
         )
         tcp_dx_m = (
-            nero_tcp_dx if nero_tcp_dx is not None else calibration.get("tcp_dx_m", 0.01)
+            nero_tcp_dx
+            if nero_tcp_dx is not None
+            else calibration.get("tcp_dx_m", NERO_DEFAULT_TCP_DX_M)
         )
         tcp_dy_m = (
-            nero_tcp_dy if nero_tcp_dy is not None else calibration.get("tcp_dy_m", 0.0)
+            nero_tcp_dy
+            if nero_tcp_dy is not None
+            else calibration.get("tcp_dy_m", NERO_DEFAULT_TCP_DY_M)
         )
         tcp_dz_m = (
-            nero_tcp_dz if nero_tcp_dz is not None else calibration.get("tcp_dz_m", 0.0)
+            nero_tcp_dz
+            if nero_tcp_dz is not None
+            else calibration.get("tcp_dz_m", NERO_DEFAULT_TCP_DZ_M)
         )
         # Videos and FULLPHYSICS states may use a calibrated NERO base/TCP
         # convention. Restore the nominal spec before each scenario so offsets
@@ -706,6 +711,14 @@ def run_current_trackdlo(
             episode_seconds=15.0,
             robot=robot,
         )
+        if robot == "nero":
+            # The RGB videos in the panda_like run were rendered with the
+            # NERO wrist-camera pose, not the Panda-oriented project default.
+            config = replace(
+                config,
+                dynamicvla_wrist_camera_pos=NERO_WRIST_CAMERA_POS,
+                dynamicvla_wrist_camera_quat=NERO_WRIST_CAMERA_QUAT,
+            )
         config.dynamicvla_cameras_enabled = True
         env = CableGraspEnv(config)
         renderer = mujoco.Renderer(env.model, height=360, width=480)
@@ -1453,10 +1466,26 @@ def run_current_trackdlo(
             "camera": camera,
             "robot": robot,
             "nero_calibration": {
-                "base_offset_m": nero_base_offset_x,
-                "tcp_dx_m": nero_tcp_dx,
-                "tcp_dy_m": nero_tcp_dy,
-                "tcp_dz_m": nero_tcp_dz,
+                "base_offset_m": (
+                    nero_base_offset_x
+                    if nero_base_offset_x is not None
+                    else (NERO_DEFAULT_BASE_OFFSET_M if robot == "nero" else None)
+                ),
+                "tcp_dx_m": (
+                    nero_tcp_dx
+                    if nero_tcp_dx is not None
+                    else (NERO_DEFAULT_TCP_DX_M if robot == "nero" else None)
+                ),
+                "tcp_dy_m": (
+                    nero_tcp_dy
+                    if nero_tcp_dy is not None
+                    else (NERO_DEFAULT_TCP_DY_M if robot == "nero" else None)
+                ),
+                "tcp_dz_m": (
+                    nero_tcp_dz
+                    if nero_tcp_dz is not None
+                    else (NERO_DEFAULT_TCP_DZ_M if robot == "nero" else None)
+                ),
             },
             "dual_camera": bool(dual_camera),
             "dual_independent": bool(dual_independent),
@@ -1607,7 +1636,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--reinitialize-grace-seconds",
         type=float,
-        default=0.0,
+        default=1.0,
         help=(
             "Allow the normal three-failure reinitialization only for this "
             "many seconds after tracking starts; 0 keeps the legacy behavior."
@@ -1625,19 +1654,27 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--accept-nonconverged",
+        dest="accept_nonconverged",
         action="store_true",
+        default=True,
         help="Use the last finite CPD iterate when max_iter is reached instead of rejecting the frame.",
+    )
+    parser.add_argument(
+        "--reject-nonconverged",
+        dest="accept_nonconverged",
+        action="store_false",
+        help="Reject frames whose CPD update reaches max_iter without convergence.",
     )
     parser.add_argument(
         "--min-visible-nodes",
         type=int,
-        default=6,
+        default=3,
         help="Minimum visible guide nodes required before calling the native TrackDLO core.",
     )
     parser.add_argument(
         "--visibility-mode",
         choices=["strict", "neighborhood", "mask", "mask_all", "depth"],
-        default="strict",
+        default="neighborhood",
         help="Visibility support gate: strict nearest point, local neighborhood, RGB-mask-only, mask without line occlusion, or RGB-mask+depth experiment.",
     )
     parser.add_argument(
@@ -1682,19 +1719,27 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--visible-observation-fusion",
+        dest="visible_observation_fusion",
         action="store_true",
+        default=True,
         help="Fuse current RGB-D cloud observations into supported visible nodes only.",
+    )
+    parser.add_argument(
+        "--no-visible-observation-fusion",
+        dest="visible_observation_fusion",
+        action="store_false",
+        help="Disable current RGB-D visible-node fusion for an ablation.",
     )
     parser.add_argument(
         "--visible-observation-blend",
         type=float,
-        default=0.75,
+        default=1.0,
         help="Blend fraction for current-cloud visible-node observations (0..1).",
     )
     parser.add_argument(
         "--visible-observation-radius",
         type=float,
-        default=0.025,
+        default=0.015,
         help="3-D radius in metres for local visible-node cloud support.",
     )
     parser.add_argument(
@@ -1735,7 +1780,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--visible-observation-motion-threshold",
         type=float,
-        default=0.004,
+        default=0.0,
         help="Minimum observed node motion in metres before visible fusion is applied.",
     )
     parser.add_argument(
@@ -1751,8 +1796,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--visible-observation-extended",
+        dest="visible_observation_extended",
         action="store_true",
+        default=True,
         help="Also fuse nodes in the supported interval between visible anchors when local cloud support exists.",
+    )
+    parser.add_argument(
+        "--no-visible-observation-extended",
+        dest="visible_observation_extended",
+        action="store_false",
+        help="Disable extended visible-interval fusion for an ablation.",
     )
     parser.add_argument(
         "--visible-observation-tangent-blend",
@@ -1860,13 +1913,21 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--hidden-velocity-prediction",
+        dest="hidden_velocity_prediction",
         action="store_true",
+        default=True,
         help="Predict hidden nodes from a decayed two-frame velocity after visible fusion.",
+    )
+    parser.add_argument(
+        "--no-hidden-velocity-prediction",
+        dest="hidden_velocity_prediction",
+        action="store_false",
+        help="Disable hidden-node velocity prediction for an ablation.",
     )
     parser.add_argument(
         "--hidden-velocity-decay",
         type=float,
-        default=0.60,
+        default=0.30,
         help="Decay for hidden-node constant-velocity prediction (0..1).",
     )
     parser.add_argument(
@@ -1941,28 +2002,44 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--adaptive-history-fusion",
+        dest="adaptive_history_fusion",
         action="store_true",
+        default=True,
         help="Use native per-node current-visible/history-occluded correspondence priors.",
+    )
+    parser.add_argument(
+        "--no-adaptive-history-fusion",
+        dest="adaptive_history_fusion",
+        action="store_false",
+        help="Disable adaptive current/history fusion for an ablation.",
     )
     parser.add_argument(
         "--adaptive-visible-alpha",
         type=float,
-        default=3.0,
+        default=12.0,
         help="Prior weight for visible nodes in native adaptive fusion.",
     )
     parser.add_argument(
         "--adaptive-occluded-alpha",
         type=float,
-        default=1.0,
+        default=0.0,
         help="Prior weight for occluded nodes in native adaptive fusion.",
     )
     parser.add_argument(
         "--adaptive-history-deformation-switch",
+        dest="adaptive_history_deformation_switch",
         action="store_true",
+        default=True,
         help=(
             "When the current visible cloud is inconsistent with a rigid "
             "motion, switch the occluded-node prior to the deformation alpha."
         ),
+    )
+    parser.add_argument(
+        "--no-adaptive-history-deformation-switch",
+        dest="adaptive_history_deformation_switch",
+        action="store_false",
+        help="Disable the adaptive deformation switch for an ablation.",
     )
     parser.add_argument(
         "--adaptive-history-deformation-threshold",
